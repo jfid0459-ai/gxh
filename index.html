@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Firebase Push Notifications</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 800px;
+      margin: 50px auto;
+      padding: 20px;
+      background: #f5f5f5;
+    }
+    button {
+      background: #4285f4;
+      color: white;
+      border: none;
+      padding: 15px 30px;
+      font-size: 16px;
+      cursor: pointer;
+      border-radius: 5px;
+    }
+    button:hover {
+      background: #357ae8;
+    }
+    #status {
+      margin: 20px 0;
+      padding: 15px;
+      background: white;
+      border-radius: 5px;
+      font-weight: bold;
+    }
+    #token {
+      background: #fff;
+      padding: 15px;
+      border-radius: 5px;
+      word-break: break-all;
+      font-size: 12px;
+      color: #666;
+    }
+  </style>
+</head>
+<body>
+  <h1>🔔 Firebase Push Notifications Test</h1>
+  <p>Cliquer 3la button bach t3tini permission:</p>
+  
+  <button id="requestPermission">T3tini Permission</button>
+  
+  <p id="status">Status: Waiting...</p>
+  <div id="token"></div>
+
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-messaging-compat.js"></script>
+
+  <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyC3baiSF88fOAoivVMNDj7z2wLT_WuTnvQ",
+      authDomain: "pushn-e9866.firebaseapp.com",
+      projectId: "pushn-e9866",
+      storageBucket: "pushn-e9866.firebasestorage.app",
+      messagingSenderId: "855213779949",
+      appId: "1:855213779949:web:d8541be6c8bcab1cbb15e4"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const messaging = firebase.messaging();
+
+    document.getElementById('requestPermission').addEventListener('click', () => {
+      console.log('Requesting permission...');
+      
+      Notification.requestPermission().then((permission) => {
+        console.log('Permission:', permission);
+        
+        if (permission === 'granted') {
+          document.getElementById('status').innerText = '✅ Status: Permission granted!';
+          document.getElementById('status').style.background = '#d4edda';
+          
+          messaging.getToken({ 
+            vapidKey: 'BAgwX5eo0-UfURsGVcgVvTdSb64RUkB1Bd86Ak5x8UdwQoOwONfv6u5WFe8MIHcfeyX6yFJKwqiXLbD7FJ3eeO8' 
+          }).then((currentToken) => {
+            if (currentToken) {
+              console.log('Token:', currentToken);
+              document.getElementById('token').innerHTML = '<strong>✅ Token (7tfظ bih):</strong><br>' + currentToken;
+              // Hنا dir token f database dyalk wla copيه
+            } else {
+              document.getElementById('token').innerText = '❌ Ma9dertch njيb token';
+            }
+          }).catch((err) => {
+            console.log('Error getting token:', err);
+            document.getElementById('status').innerText = '❌ Error: ' + err.message;
+            document.getElementById('status').style.background = '#f8d7da';
+          });
+          
+        } else {
+          document.getElementById('status').innerText = '❌ Permission refused!';
+          document.getElementById('status').style.background = '#f8d7da';
+        }
+      });
+    });
+
+    // Ila notification جات w site m7lول
+    messaging.onMessage((payload) => {
+      console.log('Message received:', payload);
+      alert('🔔 Notification:\n' + payload.notification.title + '\n\n' + payload.notification.body);
+    });
+  </script>
+</body>
+</html>
