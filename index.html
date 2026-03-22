@@ -3,14 +3,36 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="apple-mobile-web-app-title" content="Notifications">
+  <link rel="apple-touch-icon" href="/icon.png">
   <title>Firebase Push Notifications</title>
   <style>
     body {
       font-family: Arial, sans-serif;
       max-width: 800px;
-      margin: 50px auto;
+      margin: 20px auto;
       padding: 20px;
       background: #f5f5f5;
+    }
+    .ios-instructions {
+      background: #fff;
+      padding: 20px;
+      border-radius: 10px;
+      margin: 20px 0;
+      border-left: 4px solid #007AFF;
+      display: none;
+    }
+    .ios-instructions.show {
+      display: block;
+    }
+    .ios-instructions h3 {
+      color: #007AFF;
+      margin-top: 0;
+    }
+    .ios-instructions ol {
+      line-height: 1.8;
     }
     #status {
       margin: 20px 0;
@@ -18,15 +40,6 @@
       background: white;
       border-radius: 5px;
       font-weight: bold;
-    }
-    #token {
-      background: #fff;
-      padding: 15px;
-      border-radius: 5px;
-      word-break: break-all;
-      font-size: 12px;
-      color: #666;
-      display: none;
     }
     .loader {
       border: 5px solid #f3f3f3;
@@ -46,9 +59,24 @@
 <body>
   <h1>🔔 Firebase Push Notifications</h1>
   
+  <!-- تعليمات iPhone -->
+  <div class="ios-instructions" id="iosInstructions">
+    <h3>📱 مستخدمي iPhone/iPad:</h3>
+    <p><strong>لتفعيل الإشعارات على iOS، اتبع الخطوات التالية:</strong></p>
+    <ol>
+      <li>اضغط على زر <strong>مشاركة</strong> 📤 (أسفل الشاشة)</li>
+      <li>اختر <strong>"إضافة إلى الشاشة الرئيسية"</strong></li>
+      <li>اضغط <strong>"إضافة"</strong></li>
+      <li><strong>افتح التطبيق من الشاشة الرئيسية</strong> (ليس من Safari)</li>
+      <li>ستظهر لك نافذة الإذن تلقائياً ✅</li>
+    </ol>
+    <p style="background: #FFF3CD; padding: 10px; border-radius: 5px; margin-top: 15px;">
+      ⚠️ <strong>ملاحظة:</strong> الإشعارات لا تعمل من متصفح Safari العادي على iPhone
+    </p>
+  </div>
+  
   <div class="loader" id="loader"></div>
-  <p id="status">جاري طلب الإذن...</p>
-  <div id="token"></div>
+  <p id="status">جاري التحقق من المتصفح...</p>
 
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-messaging-compat.js"></script>
@@ -66,9 +94,20 @@
     firebase.initializeApp(firebaseConfig);
     const messaging = firebase.messaging();
 
-    // طلب Permission أوتوماتيكيا
+    // كشف iOS
+    function isIOS() {
+      return /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+    }
+
+    // كشف إذا كان standalone (من Home Screen)
+    function isStandalone() {
+      return window.navigator.standalone === true || 
+             window.matchMedia('(display-mode: standalone)').matches;
+    }
+
+    // طلب Permission
     function requestPermissionAutomatically() {
-      console.log('Requesting permission automatically...');
+      console.log('Requesting permission...');
       
       Notification.requestPermission().then((permission) => {
         console.log('Permission:', permission);
@@ -80,83 +119,64 @@
           document.getElementById('status').style.background = '#d4edda';
           document.getElementById('status').style.color = '#155724';
           
-          // جلب Token
           messaging.getToken({ 
             vapidKey: 'BAgwX5eo0-UfURsGVcgVvTdSb64RUkB1Bd86Ak5x8UdwQoOwONfv6u5WFe8MIHcfeyX6yFJKwqiXLbD7FJ3eeO8' 
           }).then((currentToken) => {
             if (currentToken) {
               console.log('Token:', currentToken);
-              
-              // إخفاء Token (مخفي للمستخدم، موجود f console)
-              // Ila bghيتي يبان، حيد display:none من #token f CSS
-              
-              // Sift token l backend dyalk (API):
               sendTokenToServer(currentToken);
-              
-            } else {
-              console.log('No token available');
-              document.getElementById('status').innerText = '⚠️ تعذر الحصول على Token';
             }
           }).catch((err) => {
-            console.log('Error getting token:', err);
+            console.log('Error:', err);
             document.getElementById('status').innerText = '❌ خطأ: ' + err.message;
             document.getElementById('status').style.background = '#f8d7da';
-            document.getElementById('status').style.color = '#721c24';
           });
           
-        } else if (permission === 'denied') {
+        } else {
           document.getElementById('status').innerText = '❌ تم رفض الإذن';
           document.getElementById('status').style.background = '#f8d7da';
-          document.getElementById('status').style.color = '#721c24';
-        } else {
-          document.getElementById('status').innerText = '⚠️ لم يتم اتخاذ قرار';
-          document.getElementById('status').style.background = '#fff3cd';
-          document.getElementById('status').style.color = '#856404';
         }
       });
     }
 
-    // دالة لإرسال Token للسيرفر
     function sendTokenToServer(token) {
-      console.log('Sending token to server:', token);
-      
-      // مثال: إرسال ل API dyalk
-      fetch('https://your-api.com/save-token', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          token: token,
-          timestamp: new Date().toISOString()
-        })
-      })
-      .then(response => response.json())
-      .then(data => {
-        console.log('Token saved:', data);
-      })
-      .catch(error => {
-        console.error('Error saving token:', error);
-      });
+      console.log('Token:', token);
+      // هنا ترسل ل API dyalk
     }
 
-    // استقبال Notifications
     messaging.onMessage((payload) => {
-      console.log('Message received:', payload);
-      
-      // عرض notification
+      console.log('Message:', payload);
       new Notification(payload.notification.title, {
         body: payload.notification.body,
         icon: payload.notification.icon || '/icon.png'
       });
     });
 
-    // تشغيل تلقائي عند تحميل الصفحة
+    // التشغيل
     window.addEventListener('load', () => {
-      // انتظار 1 ثانية ثم طلب Permission
-      setTimeout(() => {
-        requestPermissionAutomatically();
-      }, 1000);
+      if (isIOS()) {
+        // iPhone/iPad
+        if (isStandalone()) {
+          // مفتوح من Home Screen - طلب permission
+          document.getElementById('status').innerText = 'iOS Standalone Mode ✅';
+          setTimeout(() => {
+            requestPermissionAutomatically();
+          }, 1000);
+        } else {
+          // Safari عادي - عرض التعليمات
+          document.getElementById('loader').style.display = 'none';
+          document.getElementById('iosInstructions').classList.add('show');
+          document.getElementById('status').innerText = '📱 أنت تستخدم iPhone - اتبع التعليمات أعلاه';
+          document.getElementById('status').style.background = '#E3F2FD';
+          document.getElementById('status').style.color = '#1565C0';
+        }
+      } else {
+        // Android/Windows - يعمل مباشرة
+        document.getElementById('status').innerText = 'جاري طلب الإذن...';
+        setTimeout(() => {
+          requestPermissionAutomatically();
+        }, 1000);
+      }
     });
   </script>
 </body>
