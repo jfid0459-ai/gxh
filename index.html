@@ -3,80 +3,83 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <meta name="apple-mobile-web-app-title" content="Notifications">
-  <link rel="apple-touch-icon" href="/icon.png">
-  <title>Firebase Push Notifications</title>
+  <title>Firebase Push with Cookies</title>
   <style>
-    body {
-      font-family: Arial, sans-serif;
-      max-width: 800px;
-      margin: 20px auto;
-      padding: 20px;
-      background: #f5f5f5;
-    }
-    .ios-instructions {
-      background: #fff;
-      padding: 20px;
-      border-radius: 10px;
-      margin: 20px 0;
-      border-left: 4px solid #007AFF;
+    .ios-popup {
       display: none;
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: white;
+      padding: 30px;
+      border-radius: 15px;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+      max-width: 400px;
+      z-index: 9999;
+      text-align: center;
     }
-    .ios-instructions.show {
-      display: block;
-    }
-    .ios-instructions h3 {
+    .ios-popup h2 {
       color: #007AFF;
       margin-top: 0;
     }
-    .ios-instructions ol {
-      line-height: 1.8;
+    .ios-popup button {
+      background: #007AFF;
+      color: white;
+      border: none;
+      padding: 12px 30px;
+      border-radius: 8px;
+      margin: 10px 5px;
+      cursor: pointer;
+      font-size: 14px;
+    }
+    .ios-popup button.secondary {
+      background: #8E8E93;
+    }
+    .overlay {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0,0,0,0.5);
+      z-index: 9998;
+    }
+    .overlay.show {
+      display: block;
     }
     #status {
-      margin: 20px 0;
+      margin: 20px;
       padding: 15px;
       background: white;
       border-radius: 5px;
-      font-weight: bold;
-    }
-    .loader {
-      border: 5px solid #f3f3f3;
-      border-top: 5px solid #4285f4;
-      border-radius: 50%;
-      width: 50px;
-      height: 50px;
-      animation: spin 1s linear infinite;
-      margin: 20px auto;
-    }
-    @keyframes spin {
-      0% { transform: rotate(0deg); }
-      100% { transform: rotate(360deg); }
+      text-align: center;
     }
   </style>
 </head>
 <body>
-  <h1>🔔 Firebase Push Notifications</h1>
+  <h1 style="text-align:center;">🔔 Firebase Notifications</h1>
   
-  <!-- تعليمات iPhone -->
-  <div class="ios-instructions" id="iosInstructions">
-    <h3>📱 مستخدمي iPhone/iPad:</h3>
-    <p><strong>لتفعيل الإشعارات على iOS، اتبع الخطوات التالية:</strong></p>
-    <ol>
-      <li>اضغط على زر <strong>مشاركة</strong> 📤 (أسفل الشاشة)</li>
-      <li>اختر <strong>"إضافة إلى الشاشة الرئيسية"</strong></li>
-      <li>اضغط <strong>"إضافة"</strong></li>
-      <li><strong>افتح التطبيق من الشاشة الرئيسية</strong> (ليس من Safari)</li>
-      <li>ستظهر لك نافذة الإذن تلقائياً ✅</li>
+  <div id="status">جاري التحميل...</div>
+
+  <!-- Overlay -->
+  <div class="overlay" id="overlay"></div>
+
+  <!-- iOS Popup -->
+  <div class="ios-popup" id="iosPopup">
+    <h2>📱 مستخدم iPhone؟</h2>
+    <p>لتفعيل الإشعارات:</p>
+    <ol style="text-align: right; line-height: 1.8;">
+      <li>اضغط زر <strong>مشاركة</strong> 📤</li>
+      <li>اختر <strong>"إضافة للشاشة الرئيسية"</strong></li>
+      <li>افتح التطبيق من الشاشة الرئيسية</li>
     </ol>
-    <p style="background: #FFF3CD; padding: 10px; border-radius: 5px; margin-top: 15px;">
-      ⚠️ <strong>ملاحظة:</strong> الإشعارات لا تعمل من متصفح Safari العادي على iPhone
-    </p>
+    
+    <button onclick="userAccepted()">فهمت ✅</button>
+    <button class="secondary" onclick="remindLater()">ذكّرني لاحقاً ⏰</button>
+    <button class="secondary" onclick="userDeclined()">لا شكراً ❌</button>
   </div>
-  
-  <div class="loader" id="loader"></div>
-  <p id="status">جاري التحقق من المتصفح...</p>
 
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-messaging-compat.js"></script>
@@ -94,88 +97,139 @@
     firebase.initializeApp(firebaseConfig);
     const messaging = firebase.messaging();
 
-    // كشف iOS
+    // ==================== Cookies Functions ====================
+    
+    function setCookie(name, value, days) {
+      const maxAge = days * 24 * 60 * 60;
+      document.cookie = `${name}=${value}; max-age=${maxAge}; path=/`;
+    }
+
+    function getCookie(name) {
+      const value = `; ${document.cookie}`;
+      const parts = value.split(`; ${name}=`);
+      if (parts.length === 2) return parts.pop().split(';').shift();
+      return null;
+    }
+
+    // ==================== Device Detection ====================
+    
     function isIOS() {
       return /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
     }
 
-    // كشف إذا كان standalone (من Home Screen)
     function isStandalone() {
       return window.navigator.standalone === true || 
              window.matchMedia('(display-mode: standalone)').matches;
     }
 
-    // طلب Permission
-    function requestPermissionAutomatically() {
-      console.log('Requesting permission...');
+    // ==================== iOS Popup Functions ====================
+    
+    function showIOSPopup() {
+      // التحقق: هل شاف popup من قبل؟
+      const shown = getCookie('ios_guide_shown');
+      const declined = getCookie('ios_declined');
+      const reminder = getCookie('ios_reminder');
       
+      // إذا رفض نهائياً
+      if (declined === 'true') {
+        document.getElementById('status').innerText = 'تم تعطيل الإشعارات مسبقاً';
+        return;
+      }
+      
+      // إذا اختار "ذكرني لاحقاً"
+      if (reminder) {
+        const reminderTime = parseInt(reminder);
+        if (Date.now() < reminderTime) {
+          document.getElementById('status').innerText = 'سيتم التذكير لاحقاً';
+          return;
+        }
+      }
+      
+      // إذا ماشافهاش من قبل أو حان وقت التذكير
+      document.getElementById('iosPopup').style.display = 'block';
+      document.getElementById('overlay').classList.add('show');
+      
+      // تخزين أنه شافها
+      setCookie('ios_guide_shown', 'true', 365);
+    }
+
+    function hideIOSPopup() {
+      document.getElementById('iosPopup').style.display = 'none';
+      document.getElementById('overlay').classList.remove('show');
+    }
+
+    function userAccepted() {
+      setCookie('ios_accepted', 'true', 365);
+      hideIOSPopup();
+      document.getElementById('status').innerText = '✅ رائع! أضف الموقع للشاشة الرئيسية الآن';
+      document.getElementById('status').style.background = '#d4edda';
+    }
+
+    function userDeclined() {
+      setCookie('ios_declined', 'true', 365);
+      hideIOSPopup();
+      document.getElementById('status').innerText = 'تم إلغاء الإشعارات';
+      document.getElementById('status').style.background = '#f8d7da';
+    }
+
+    function remindLater() {
+      const reminderTime = Date.now() + (24 * 60 * 60 * 1000); // بعد 24 ساعة
+      setCookie('ios_reminder', reminderTime, 1);
+      hideIOSPopup();
+      document.getElementById('status').innerText = '⏰ سنذكرك بعد 24 ساعة';
+      document.getElementById('status').style.background = '#fff3cd';
+    }
+
+    // ==================== Firebase Notifications ====================
+    
+    function requestPermissionAutomatically() {
       Notification.requestPermission().then((permission) => {
-        console.log('Permission:', permission);
-        
-        document.getElementById('loader').style.display = 'none';
-        
         if (permission === 'granted') {
-          document.getElementById('status').innerText = '✅ تم منح الإذن بنجاح!';
+          document.getElementById('status').innerText = '✅ تم منح الإذن!';
           document.getElementById('status').style.background = '#d4edda';
-          document.getElementById('status').style.color = '#155724';
           
           messaging.getToken({ 
             vapidKey: 'BAgwX5eo0-UfURsGVcgVvTdSb64RUkB1Bd86Ak5x8UdwQoOwONfv6u5WFe8MIHcfeyX6yFJKwqiXLbD7FJ3eeO8' 
-          }).then((currentToken) => {
-            if (currentToken) {
-              console.log('Token:', currentToken);
-              sendTokenToServer(currentToken);
+          }).then((token) => {
+            if (token) {
+              console.log('Token:', token);
+              // تخزين token f cookie
+              setCookie('fcm_token', token, 365);
             }
-          }).catch((err) => {
-            console.log('Error:', err);
-            document.getElementById('status').innerText = '❌ خطأ: ' + err.message;
-            document.getElementById('status').style.background = '#f8d7da';
           });
-          
-        } else {
-          document.getElementById('status').innerText = '❌ تم رفض الإذن';
-          document.getElementById('status').style.background = '#f8d7da';
         }
       });
-    }
-
-    function sendTokenToServer(token) {
-      console.log('Token:', token);
-      // هنا ترسل ل API dyalk
     }
 
     messaging.onMessage((payload) => {
       console.log('Message:', payload);
       new Notification(payload.notification.title, {
-        body: payload.notification.body,
-        icon: payload.notification.icon || '/icon.png'
+        body: payload.notification.body
       });
     });
 
-    // التشغيل
+    // ==================== Page Load ====================
+    
     window.addEventListener('load', () => {
+      // تخزين نوع الجهاز
       if (isIOS()) {
-        // iPhone/iPad
+        setCookie('device', 'ios', 365);
+        
         if (isStandalone()) {
-          // مفتوح من Home Screen - طلب permission
-          document.getElementById('status').innerText = 'iOS Standalone Mode ✅';
-          setTimeout(() => {
-            requestPermissionAutomatically();
-          }, 1000);
+          // مفتوح من Home Screen
+          setCookie('ios_mode', 'standalone', 365);
+          document.getElementById('status').innerText = '✅ iOS Standalone Mode';
+          setTimeout(requestPermissionAutomatically, 1000);
         } else {
-          // Safari عادي - عرض التعليمات
-          document.getElementById('loader').style.display = 'none';
-          document.getElementById('iosInstructions').classList.add('show');
-          document.getElementById('status').innerText = '📱 أنت تستخدم iPhone - اتبع التعليمات أعلاه';
-          document.getElementById('status').style.background = '#E3F2FD';
-          document.getElementById('status').style.color = '#1565C0';
+          // Safari عادي - عرض popup
+          setCookie('ios_mode', 'browser', 365);
+          setTimeout(showIOSPopup, 2000);
         }
       } else {
-        // Android/Windows - يعمل مباشرة
+        // Android/Windows
+        setCookie('device', 'other', 365);
         document.getElementById('status').innerText = 'جاري طلب الإذن...';
-        setTimeout(() => {
-          requestPermissionAutomatically();
-        }, 1000);
+        setTimeout(requestPermissionAutomatically, 1000);
       }
     });
   </script>
