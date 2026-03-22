@@ -12,18 +12,6 @@
       padding: 20px;
       background: #f5f5f5;
     }
-    button {
-      background: #4285f4;
-      color: white;
-      border: none;
-      padding: 15px 30px;
-      font-size: 16px;
-      cursor: pointer;
-      border-radius: 5px;
-    }
-    button:hover {
-      background: #357ae8;
-    }
     #status {
       margin: 20px 0;
       padding: 15px;
@@ -38,16 +26,28 @@
       word-break: break-all;
       font-size: 12px;
       color: #666;
+      display: none;
+    }
+    .loader {
+      border: 5px solid #f3f3f3;
+      border-top: 5px solid #4285f4;
+      border-radius: 50%;
+      width: 50px;
+      height: 50px;
+      animation: spin 1s linear infinite;
+      margin: 20px auto;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
     }
   </style>
 </head>
 <body>
-  <h1>🔔 Firebase Push Notifications Test</h1>
-  <p>Cliquer 3la button bach t3tini permission:</p>
+  <h1>🔔 Firebase Push Notifications</h1>
   
-  <button id="requestPermission">T3tini Permission</button>
-  
-  <p id="status">Status: Waiting...</p>
+  <div class="loader" id="loader"></div>
+  <p id="status">جاري طلب الإذن...</p>
   <div id="token"></div>
 
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
@@ -66,43 +66,97 @@
     firebase.initializeApp(firebaseConfig);
     const messaging = firebase.messaging();
 
-    document.getElementById('requestPermission').addEventListener('click', () => {
-      console.log('Requesting permission...');
+    // طلب Permission أوتوماتيكيا
+    function requestPermissionAutomatically() {
+      console.log('Requesting permission automatically...');
       
       Notification.requestPermission().then((permission) => {
         console.log('Permission:', permission);
         
+        document.getElementById('loader').style.display = 'none';
+        
         if (permission === 'granted') {
-          document.getElementById('status').innerText = '✅ Status: Permission granted!';
+          document.getElementById('status').innerText = '✅ تم منح الإذن بنجاح!';
           document.getElementById('status').style.background = '#d4edda';
+          document.getElementById('status').style.color = '#155724';
           
+          // جلب Token
           messaging.getToken({ 
             vapidKey: 'BAgwX5eo0-UfURsGVcgVvTdSb64RUkB1Bd86Ak5x8UdwQoOwONfv6u5WFe8MIHcfeyX6yFJKwqiXLbD7FJ3eeO8' 
           }).then((currentToken) => {
             if (currentToken) {
               console.log('Token:', currentToken);
-              document.getElementById('token').innerHTML = '<strong>✅ Token (7tfظ bih):</strong><br>' + currentToken;
-              // Hنا dir token f database dyalk wla copيه
+              
+              // إخفاء Token (مخفي للمستخدم، موجود f console)
+              // Ila bghيتي يبان، حيد display:none من #token f CSS
+              
+              // Sift token l backend dyalk (API):
+              sendTokenToServer(currentToken);
+              
             } else {
-              document.getElementById('token').innerText = '❌ Ma9dertch njيb token';
+              console.log('No token available');
+              document.getElementById('status').innerText = '⚠️ تعذر الحصول على Token';
             }
           }).catch((err) => {
             console.log('Error getting token:', err);
-            document.getElementById('status').innerText = '❌ Error: ' + err.message;
+            document.getElementById('status').innerText = '❌ خطأ: ' + err.message;
             document.getElementById('status').style.background = '#f8d7da';
+            document.getElementById('status').style.color = '#721c24';
           });
           
-        } else {
-          document.getElementById('status').innerText = '❌ Permission refused!';
+        } else if (permission === 'denied') {
+          document.getElementById('status').innerText = '❌ تم رفض الإذن';
           document.getElementById('status').style.background = '#f8d7da';
+          document.getElementById('status').style.color = '#721c24';
+        } else {
+          document.getElementById('status').innerText = '⚠️ لم يتم اتخاذ قرار';
+          document.getElementById('status').style.background = '#fff3cd';
+          document.getElementById('status').style.color = '#856404';
         }
+      });
+    }
+
+    // دالة لإرسال Token للسيرفر
+    function sendTokenToServer(token) {
+      console.log('Sending token to server:', token);
+      
+      // مثال: إرسال ل API dyalk
+      fetch('https://your-api.com/save-token', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          token: token,
+          timestamp: new Date().toISOString()
+        })
+      })
+      .then(response => response.json())
+      .then(data => {
+        console.log('Token saved:', data);
+      })
+      .catch(error => {
+        console.error('Error saving token:', error);
+      });
+    }
+
+    // استقبال Notifications
+    messaging.onMessage((payload) => {
+      console.log('Message received:', payload);
+      
+      // عرض notification
+      new Notification(payload.notification.title, {
+        body: payload.notification.body,
+        icon: payload.notification.icon || '/icon.png'
       });
     });
 
-    // Ila notification جات w site m7lول
-    messaging.onMessage((payload) => {
-      console.log('Message received:', payload);
-      alert('🔔 Notification:\n' + payload.notification.title + '\n\n' + payload.notification.body);
+    // تشغيل تلقائي عند تحميل الصفحة
+    window.addEventListener('load', () => {
+      // انتظار 1 ثانية ثم طلب Permission
+      setTimeout(() => {
+        requestPermissionAutomatically();
+      }, 1000);
     });
   </script>
 </body>
